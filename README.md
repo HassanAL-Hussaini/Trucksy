@@ -273,3 +273,16 @@ With clear data modeling, secure payment integration, and location-based service
 | PUT | `/price/{truckId}/{itemId}/{newPrice}` | Update item price | muteb |
 | GET | `/filterByPrice/{truckId}/{min}/{max}` | Filter items by price range | muteb |
 | POST | `/image/{truckId}/{itemId}` | Upload item image (multipart) | muath |
+
+
+
+
+## JUnit Tests Summary
+
+| Test Class | Layer | Covered Repository/Service/Controller | Count | Name |
+|---|---|---|---:|---|
+| TrucksyRepositoryTest | Repository | ItemRepository, FoodTruckRepository, OwnerRepository, AuthRepository | 5 | muteb |
+| TrucksyServiceTest | Service | ClientService (with ClientRepository, AuthRepository, HereGeocodingService) | 9 | hassan |
+| FoodTruckControllerTest | Controller | FoodTruckController (with mocked FoodTruckService) | 5 | muath |
+| **Total** |  |  | **19** |  |
+
