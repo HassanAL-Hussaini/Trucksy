@@ -101,6 +101,17 @@ Premium owners gain access to **AI-powered insights and analytics** after subscr
 
 ---
 
+### Links
+
+- [🎨 Figma Design](https://www.figma.com/design/hvVvEeGbhr3lqANwAzAeNj/System-Flow?node-id=0-1&t=lzGzHO9Y5U0X9ov2-1)
+- [📬 Postman Documentation](https://documenter.getpostman.com/view/41550137/2sB3HnJeqi)  
+- [📊 Presentation (Canva)](https://www.canva.com/design/DAGyX97zdi0/MZaNDYxF5TtX6ONkAkyFzQ/edit?utm_content=DAGyX97zdi0&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
+
+
+
+
+
+
 ## Enhancements & Creative Improvements
 - **Colorful diagrams**: Entities and relationships are color-coded for clarity (use Mermaid for dynamic visualization).  
 - **Detailed captions**: Each diagram has a short description explaining the functionality.  
@@ -114,3 +125,151 @@ Premium owners gain access to **AI-powered insights and analytics** after subscr
 Trucksy is designed to be a **full-featured backend solution** for food trucks in Riyadh.  
 It balances **customer convenience, owner management, and admin control**, while integrating **AI-powered insights** for premium users.  
 With clear data modeling, secure payment integration, and location-based services, Trucksy provides a complete ecosystem for food truck operations.  
+--------
+
+# API Endpoints Summary
+
+| Controller | Count |
+|---|---:|
+| AuthController | 5 |
+| BankCardController | 2 |
+| ClientController | 4 |
+| DashboardController | 8 |
+| DiscountController | 7 |
+| FoodTruckController | 10 |
+| OrderController | 8 |
+| OwnerController | 6 |
+| ReviewController | 4 |
+| WhatsAppController | 1 |
+| ItemController | 9 |
+| **Total** | **64** |
+
+---
+
+## AuthController (`/api/v1/auth`)
+| Method | Path | Description | Name |
+|---|---|---|---|
+| GET | `/get` | Get all users | muteb |
+| DELETE | `/delete/{user_id}` | Delete user | muteb |
+| GET | `/get-all-owners` | Get all owners | muteb |
+| GET | `/get-all-clients` | Get all clients | muteb |
+| DELETE | `/delete-foodTruck/{foodTruck_id}` | Delete a food truck (admin) | muteb |
+
+---
+
+## BankCardController (`/api/v1/bankcard`)
+| Method | Path | Description | Name |
+|---|---|---|---|
+| POST | `/add` | Add bank card (current user) | hassan |
+| GET | `/get` | Get bank card by current user | hassan |
+
+---
+
+## ClientController (`/api/v1/client`)
+| Method | Path | Description | Name |
+|---|---|---|---|
+| POST | `/add` | Register client | muath |
+| PUT | `/update` | Update client (current user) | muath |
+| DELETE | `/delete` | Delete client (current user) | muath |
+| PUT | `/update-client-location` | Update client location | muath |
+
+---
+
+## DashboardController (`/api/v1/dashboard`)
+| Method | Path | Description | Name |
+|---|---|---|---|
+| PUT | `/refresh-dashboard` | Refresh owner dashboard | muath |
+| GET | `/get-owner-dashboard` | Get owner dashboard | muath |
+| GET | `/get-all-order-by-foodTruck/{foodTruck_id}` | Orders by truck | muath |
+| GET | `/analyze-reviews/{foodTruckId}` | AI review analyzer | hassan |
+| GET | `/analyze-dashboard` | AI dashboard analyzer | hassan |
+| GET | `/get-Placed-orders` | Get PLACED orders (owner) | muath |
+| GET | `/get-ready-orders` | Get READY orders (owner) | muath |
+| GET | `/get-completed-orders` | Get COMPLETED orders (owner) | muath |
+
+---
+
+## DiscountController (`/api/v1/discount`)
+| Method | Path | Description | Name |
+|---|---|---|---|
+| GET | `/getAll/{truckId}` | All discounts for a truck | muteb |
+| GET | `/get/{truckId}/{itemId}` | Discount by item | muteb |
+| POST | `/add/{truckId}/{itemId}` | Add discount to item | muteb |
+| PUT | `/update/{truckId}/{discountId}` | Update discount | muteb |
+| DELETE | `/delete/{truckId}/{discountId}` | Delete discount | muteb |
+| PUT | `/activate/{truckId}/{discountId}` | Activate discount | muteb |
+| PUT | `/deactivate/{truckId}/{discountId}` | Deactivate discount | muteb |
+
+---
+
+## FoodTruckController (`/api/v1/foodTruck`)
+| Method | Path | Description | Name |
+|---|---|---|---|
+| POST | `/add` | Add food truck | muath |
+| PUT | `/update/{truck_id}` | Update food truck | muath |
+| DELETE | `/delete/{truck_id}` | Delete food truck | muath |
+| GET | `/get-all-trucks-by-owner_id` | All trucks for current owner | muath |
+| GET | `/get-foodTrucks-by-category/{category}` | Trucks by category | muath |
+| GET | `/get-nearest?limit={n}` | Top nearest trucks (client) | muath |
+| PUT | `/update-food-truck-location/{foodTruck_id}` | Update truck location | muath |
+| PUT | `/open-foodTruck/{foodTruck_id}` | Open truck | muath |
+| PUT | `/close-foodTruck/{foodTruck_id}` | Close truck | muath |
+| POST | `/upload-image/{truck_id}` | Upload truck image (multipart) | muath |
+
+---
+
+## OrderController (`/api/v1/order`)
+| Method | Path | Description | Name |
+|---|---|---|---|
+| POST | `/add/{foodTruckId}` | Create order (client) | hassan |
+| POST | `/callback/{orderId}` | Payment callback (no PID) | hassan |
+| POST | `/callback/{orderId}/{paymentId}` | Payment callback (with PID) | hassan |
+| PUT | `/status/ready/{foodTruckId}/{orderId}` | Mark order READY (owner) | hassan |
+| PUT | `/status/completed/{foodTruckId}/{orderId}` | Mark order COMPLETED (owner) | hassan |
+| GET | `/foodtruck/{foodTruckId}` | List orders for a truck | hassan |
+| GET | `/client` | List orders for current client | hassan |
+| GET | `/foodtruck/{foodTruckId}/{orderId}` | Get single order for a truck | hassan |
+
+---
+
+## OwnerController (`/api/v1/owner`)
+| Method | Path | Description | Name |
+|---|---|---|---|
+| POST | `/add` | Register owner | hassan |
+| PUT | `/update` | Update owner (current user) | hassan |
+| DELETE | `/delete` | Delete owner (current user) | hassan |
+| POST | `/subscribe` | Start subscription payment | hassan |
+| POST | `/callback/{ownerId}` | Subscription callback (no PID) | hassan |
+| POST | `/callback/{ownerId}/{paymentId}` | Subscription callback (with PID) | hassan |
+
+---
+
+## ReviewController (`/api/v1/review`)
+| Method | Path | Description | Name |
+|---|---|---|---|
+| POST | `/add/{foodTruck_id}` | Add review to truck (client) | muath |
+| GET | `/get-reviews-by-truck/{foodTruck_id}` | Reviews by truck | muath |
+| GET | `/get-reviews-by-client` | Reviews by current client | muath |
+| GET | `/get-truck-rating/{foodTruck_id}` | Average rating for truck | muath |
+
+---
+
+## WhatsAppController (`/api/v1/whatsApp`)
+| Method | Path | Description | Name |
+|---|---|---|---|
+| POST | `/send-text` | Send WhatsApp text | muteb |
+
+---
+
+## ItemController (`/api/v1/item`)
+| Method | Path | Description | Name |
+|---|---|---|---|
+| GET | `/get/{truckId}` | Items of a truck (owner) | muteb |
+| POST | `/add/{truckId}` | Add item to truck | muteb |
+| PUT | `/update/{truckId}/{itemId}` | Update item | muteb |
+| DELETE | `/delete/{truckId}/{itemId}` | Delete item | muteb |
+| PUT | `/setAvailable/{truckId}/{itemId}` | Set item available | muteb |
+| PUT | `/setNotAvailable/{truckId}/{itemId}` | Set item not available | muteb |
+| PUT | `/price/{truckId}/{itemId}/{newPrice}` | Update item price | muteb |
+| GET | `/filterByPrice/{truckId}/{min}/{max}` | Filter items by price range | muteb |
+| POST | `/image/{truckId}/{itemId}` | Upload item image (multipart) | muath |
