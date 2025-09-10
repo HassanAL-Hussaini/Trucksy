@@ -1,22 +1,16 @@
 package org.example.trucksy.DTOOut;
 
 import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
-@Getter
-@Setter
+@Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class DashBoardAnalyzerDtoOut {
-
-    // Backward compatibility
-    private String bestSpotToPark;
+    // Removed bestSpotToPark - now handled by BestSpotAnalyzerDtoOut
     private String adviceBasedOnTheDashboard;
     private String adviceOnItemDescription;
-
-    // KPIs
     private Integer totalOrders;
     private Integer totalCompletedOrders;
     private Integer predictedOrders;
@@ -29,12 +23,8 @@ public class DashBoardAnalyzerDtoOut {
     private Double avgPrepTimeSec;
     private Double queueLenAvg;
     private Double tipsTotal;
-
-    // Impact indices
     private Double weatherImpactIndex;
     private Double eventImpactIndex;
-
-    // Confidence & context
     private Double confidence;
     private Boolean riyadhOnly;
     private String analysisPeriodFrom;

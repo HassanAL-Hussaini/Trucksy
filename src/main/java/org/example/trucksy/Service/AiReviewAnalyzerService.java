@@ -30,7 +30,7 @@ public class AiReviewAnalyzerService {
         if (owner == null) {
             throw new ApiException("Owner not found");
         }
-        if (!owner.isSubscribed()) {
+        if (!owner.getSubscribed()) {
             throw new ApiException("Owner is not subscribed. AI services are only available for subscribers");
         }
 

@@ -26,27 +26,25 @@ public class OrderController {
     public ResponseEntity<?> addOrder(@AuthenticationPrincipal User user,
                                       @PathVariable Integer foodTruckId,
                                       @Valid @RequestBody Set<LiensDtoIn> liensDtoIn) {
-
-        // NOTE (assistant): Return service ResponseEntity directly to avoid double-wrapping.
+        // Return service ResponseEntity directly to avoid double-wrapping
         return orderService.addOrder(user.getId(), foodTruckId, liensDtoIn);
     }
 
-    //todo test the call manually and after deployment it will call directly from addorder endpoint with the Callback Url
-    //1) paymentId: POST /api/v1/payment/callback/{orderId} use this method after deploy -> so this is for production env
-    @PostMapping("/callback/{orderId}")
-    public ResponseEntity<?> callbackNoPid(@PathVariable Integer orderId) {
-        // NOTE (assistant): Controller path is /api/v1/order/callback/{orderId} (not /api/v1/payment/...)
-        return orderService.handlePaymentCallback(orderId, null);
+    // Fixed callback endpoint - GET method to match Moyasar's callback pattern
+    @GetMapping("/callback/{orderId}")
+    public ResponseEntity<?> orderPaymentCallback(@PathVariable Integer orderId,
+                                                  @RequestParam(name = "id") String transaction_id,
+                                                  @RequestParam(name = "status") String status,
+                                                  @RequestParam(name = "message") String message) {
+        // Following the same pattern as your working BA implementation
+        // Moyasar sends: ?id=transaction_id&status=paid&message=APPROVED
+        return orderService.handlePaymentCallback(orderId, transaction_id, status, message);
     }
 
-    // 2) paymentId: POST /api/v1/payment/callback/{orderId}/{paymentId} -> and this for developer env
-    @PostMapping("/callback/{orderId}/{paymentId}")
-    public ResponseEntity<?> callbackWithPid(
-            @PathVariable Integer orderId,
-            @PathVariable String paymentId
-    ) {
-        // NOTE (assistant): Controller path is /api/v1/order/callback/{orderId}/{paymentId}
-        return orderService.handlePaymentCallback(orderId, paymentId);
+    // Get payment status
+    @GetMapping("/payment/status/{paymentId}")
+    public ResponseEntity<?> getPaymentStatus(@PathVariable String paymentId) {
+        return ResponseEntity.ok(orderService.getPaymentStatus(paymentId));
     }
 
     // تغيير الحالة إلى READY (من Path Variables)
@@ -71,12 +69,10 @@ public class OrderController {
         ));
     }
 
-
     @GetMapping("/foodtruck/{foodTruckId}")
     public ResponseEntity<List<OrderDtoOut>> getOrdersForFoodTruck(@PathVariable Integer foodTruckId) {
         return ResponseEntity.status(200).body(orderService.getOrdersForFoodTruckDto(foodTruckId));
     }
-
 
     @GetMapping("/client")
     public ResponseEntity<List<OrderDtoOut>> getOrdersForClient(@AuthenticationPrincipal User user) {

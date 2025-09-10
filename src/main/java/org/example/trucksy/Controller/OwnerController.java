@@ -35,28 +35,33 @@ public class OwnerController {
         return ResponseEntity.status(200).body(new ApiResponse("Owner deleted successfully"));
     }
 
-    // Subscription payment endpoint - following the same style as addOrder
-    @PostMapping("/subscribe") // todo after Security added remove ownerId from the path
+    // Subscription payment endpoint
+    @PostMapping("/subscribe")
     public ResponseEntity<?> subscribeOwner(@AuthenticationPrincipal User user) {
-        // NOTE: Return service ResponseEntity directly to avoid double-wrapping.
         return ownerService.ownerSubscribePayment(user.getId());
     }
 
-    //todo test the call manually and after deployment it will call directly from subscribe endpoint with the Callback Url
-    //1) paymentId: POST /api/v1/owner/callback/{ownerId} use this method after deploy -> so this is for production env
-    @PostMapping("/callback/{ownerId}")
-    public ResponseEntity<?> subscriptionCallbackNoPid(@PathVariable Integer ownerId) {
-        // NOTE: Controller path is /api/v1/owner/callback/{ownerId}
-        return ownerService.handleSubscriptionPaymentCallback(ownerId, null);
+    // Callback endpoint - GET method to match Moyasar's callback pattern
+    @GetMapping("/callback/{ownerId}")
+    public ResponseEntity<?> subscriptionCallback(@PathVariable Integer ownerId,
+                                                  @RequestParam(name = "id") String transaction_id,
+                                                  @RequestParam(name = "status") String status,
+                                                  @RequestParam(name = "message") String message) {
+        // Following the same pattern as your working BA implementation
+        // Moyasar sends: ?id=transaction_id&status=paid&message=APPROVED
+        return ownerService.handleSubscriptionPaymentCallback(ownerId, transaction_id, status, message);
     }
 
-    // 2) paymentId: POST /api/v1/owner/callback/{ownerId}/{paymentId} -> and this for developer env
-    @PostMapping("/callback/{ownerId}/{paymentId}")
-    public ResponseEntity<?> subscriptionCallbackWithPid(
-            @PathVariable Integer ownerId,
-            @PathVariable String paymentId
-    ) {
-        // NOTE: Controller path is /api/v1/owner/callback/{ownerId}/{paymentId}
-        return ownerService.handleSubscriptionPaymentCallback(ownerId, paymentId);
+    // Get subscription status
+    @GetMapping("/subscription/status")
+    public ResponseEntity<?> getSubscriptionStatus(@AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(ownerService.getSubscriptionStatus(user.getId()));
+    }
+
+    // Cancel subscription
+    @PutMapping("/subscription/cancel")
+    public ResponseEntity<?> cancelSubscription(@AuthenticationPrincipal User user) {
+        ownerService.cancelSubscription(user.getId());
+        return ResponseEntity.ok(new ApiResponse("Subscription canceled successfully"));
     }
 }

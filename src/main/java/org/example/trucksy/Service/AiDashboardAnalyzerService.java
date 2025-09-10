@@ -36,7 +36,7 @@ public class AiDashboardAnalyzerService {
         if (owner == null) {
             throw new ApiException("Owner not found");
         }
-        if (!owner.isSubscribed()) {
+        if (!owner.getSubscribed()) {
             throw new ApiException("Owner is not subscribed. AI services are only available for subscribers");
         }
 
@@ -115,7 +115,6 @@ public class AiDashboardAnalyzerService {
         STRICT OUTPUT FORMAT:
         Return ONLY a single JSON object with EXACTLY these fields:
         {
-          "bestSpotToPark": "<string>",
           "adviceBasedOnTheDashboard": "<string up to 150 words>",
           "adviceOnItemDescription": "<string>",
           "totalOrders": <number>,
@@ -149,7 +148,6 @@ public class AiDashboardAnalyzerService {
 
         CALCULATION RULES:
         - Use provided data as base, but estimate realistic values for missing metrics
-        - "bestSpotToPark": Recommend specific Riyadh districts/areas based on category and performance
         - "adviceBasedOnTheDashboard": Business improvement advice specific to Saudi market (max 150 words)
         - "adviceOnItemDescription": Suggest item improvements for local tastes
         - Predicted orders: Base on trends, season, and Riyadh market patterns
@@ -177,7 +175,7 @@ public class AiDashboardAnalyzerService {
         FOOD TRUCKS:
         %s
 
-        Focus on actionable insights for the Saudi Arabian food truck market. Consider local competition, cultural preferences, optimal locations in Riyadh, seasonal impacts, and growth strategies specific to the Kingdom.
+        Focus on actionable insights for the Saudi Arabian food truck market. Consider local competition, cultural preferences, seasonal impacts, and growth strategies specific to the Kingdom.
 
         Return only the JSON object.
         """,
@@ -202,7 +200,6 @@ public class AiDashboardAnalyzerService {
         }
 
         // Extract and validate all fields
-        String bestSpotToPark = node.path("bestSpotToPark").asText("");
         String adviceBasedOnTheDashboard = node.path("adviceBasedOnTheDashboard").asText("");
         String adviceOnItemDescription = node.path("adviceOnItemDescription").asText("");
 
@@ -244,9 +241,6 @@ public class AiDashboardAnalyzerService {
         if (!riyadhOnly) throw new ApiException("AI: riyadhOnly must be true");
 
         // Provide defaults for optional string fields
-        if (bestSpotToPark.isBlank()) {
-            bestSpotToPark = "King Fahd District - High foot traffic area";
-        }
         if (adviceBasedOnTheDashboard.isBlank()) {
             adviceBasedOnTheDashboard = "Continue monitoring key performance indicators and focus on customer satisfaction to drive growth in the Riyadh market.";
         }
@@ -261,12 +255,10 @@ public class AiDashboardAnalyzerService {
         }
 
         // Limit field lengths
-        bestSpotToPark = limitChars(bestSpotToPark, 100);
         adviceBasedOnTheDashboard = limitWords(adviceBasedOnTheDashboard, 150);
         adviceOnItemDescription = limitChars(adviceOnItemDescription, 150);
 
         return new DashBoardAnalyzerDtoOut(
-                bestSpotToPark,
                 adviceBasedOnTheDashboard,
                 adviceOnItemDescription,
                 totalOrders,

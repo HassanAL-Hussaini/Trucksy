@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.util.Set;
 
 @Getter
@@ -18,8 +19,9 @@ public class Owner {
     @Id
     private Integer id;
 
-    private boolean subscribed;
-
+    private Boolean subscribed;
+    private LocalDate subscriptionStartDate;
+    private LocalDate subscriptionEndDate;
     @OneToOne
     @MapsId
 //    @JoinColumn(name = "user_id")

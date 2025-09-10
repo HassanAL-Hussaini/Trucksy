@@ -2,10 +2,7 @@ package org.example.trucksy.Service;
 
 import lombok.RequiredArgsConstructor;
 import org.example.trucksy.Api.ApiException;
-import org.example.trucksy.DTOOut.DashBoardAnalyzerDtoOut;
-import org.example.trucksy.DTOOut.OrderDashboardDTOOut;
-import org.example.trucksy.DTOOut.OwnerDashboardDTO;
-import org.example.trucksy.DTOOut.ReviewAnalyzerDtoOut;
+import org.example.trucksy.DTOOut.*;
 import org.example.trucksy.Model.Dashboard;
 import org.example.trucksy.Model.Order;
 import org.example.trucksy.Model.Owner;
@@ -21,13 +18,15 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DashboardService {
 
+    // Add the new BestSpotAnalyzerService dependency
+    private final BestSpotAnalyzerService bestSpotAnalyzerService;
+    private final AiDashboardAnalyzerService aiDashboardAnalyzerService;
     private final DashboardRepository dashboardRepository;
     private final OrderRepository orderRepository;
     private final AiReviewAnalyzerService aiReviewAnalyzerService;
-    private final AiDashboardAnalyzerService aiDashboardAnalyzerService;
     private final OwnerRepository ownerRepository;
 
-
+    // Existing methods remain the same...
     public void refreshDashboard(Integer owner_id) {
         Dashboard dash = dashboardRepository.findDashboardById(owner_id);
         Integer total = orderRepository.countOrdersByOwner(owner_id);
@@ -45,7 +44,6 @@ public class DashboardService {
 
         dashboardRepository.save(dash);
     }
-
 
     public OwnerDashboardDTO getOwnerDashboard(Integer ownerId) {
         Dashboard dash = dashboardRepository.findDashboardById(ownerId);
@@ -69,7 +67,6 @@ public class DashboardService {
                 dash.getUpdateDate()
         );
     }
-
 
     public List<OrderDashboardDTOOut> getOrdersByFoodTruck(Integer foodTruckId) {
         List<Order> orders = orderRepository.findByFoodTruck_IdOrderByIdDesc(foodTruckId);
@@ -95,17 +92,17 @@ public class DashboardService {
         }
     }
 
-    public ResponseEntity<DashBoardAnalyzerDtoOut> analyzeDashboard(Integer ownerId) {
-        try {
-            DashBoardAnalyzerDtoOut analysis = aiDashboardAnalyzerService.analyzeDashboardByOwnerId(ownerId);
-            return ResponseEntity.ok(analysis);
-        } catch (ApiException e) {
-            throw e; // Re-throw API exceptions as-is
-        } catch (Exception e) {
-            throw new ApiException("Failed to analyze dashboard: " + e.getMessage());
-        }
+    // Updated method to use the new AiDashboardAnalyzerService
+    public ResponseEntity<DashBoardAnalyzerDtoOut> analyzeDashboard(Integer userId) {
+        DashBoardAnalyzerDtoOut result = aiDashboardAnalyzerService.analyzeDashboardByOwnerId(userId);
+        return ResponseEntity.ok(result);
     }
 
+    // New method for best spot analysis
+    public ResponseEntity<BestSpotAnalyzerDtoOut> analyzeBestSpot(Integer userId) {
+        BestSpotAnalyzerDtoOut result = bestSpotAnalyzerService.analyzeBestSpotByOwnerId(userId);
+        return ResponseEntity.ok(result);
+    }
 
     public List<OrderDashboardDTOOut> getPLACEDOrdersByOwner(Integer ownerId) {
         Owner owner = ownerRepository.findOwnerById(ownerId);
@@ -124,7 +121,6 @@ public class DashboardService {
                 )).toList();
     }
 
-
     public List<OrderDashboardDTOOut> getReadyOrdersByOwner(Integer ownerId) {
         Owner owner = ownerRepository.findOwnerById(ownerId);
         if (owner == null) {
@@ -141,7 +137,6 @@ public class DashboardService {
                         o.getStatus()
                 )).toList();
     }
-
 
     public List<OrderDashboardDTOOut> getCompletedOrdersByOwner(Integer ownerId) {
         Owner owner = ownerRepository.findOwnerById(ownerId);

@@ -10,6 +10,8 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+import org.json.JSONObject;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -34,7 +36,8 @@ public class OrderService {
 
     @Value("${moyasar.api.key}")
     private String apiKey;
-    private static final String MOYASAR_API_URL = "https://api.moyasar.com/v1/payments/";
+
+    private static final String MOYASAR_API_URL = "https://api.moyasar.com/v1/payments";
 
     @Transactional
     public ResponseEntity<?> addOrder(Integer clientId, Integer foodTruckId, Set<LiensDtoIn> liensDtoIns) {
@@ -63,7 +66,7 @@ public class OrderService {
         Set<OrderLine> lines = new LinkedHashSet<>();
         Double totalPrice = 0.0;
 
-        // FIXED: Better duplicate item handling
+        // Better duplicate item handling
         for (LiensDtoIn lien : liensDtoIns) {
             Integer qty = lien.getQuantity();
             if (qty == null || qty <= 0)
@@ -82,7 +85,7 @@ public class OrderService {
                 throw new ApiException("Item " + item.getName() + " does not belong to the selected FoodTruck");
             }
 
-            // FIXED: Use stream API for cleaner duplicate detection
+            // Use stream API for cleaner duplicate detection
             OrderLine existing = lines.stream()
                     .filter(ol -> ol.getItem().getId().equals(item.getId()))
                     .findFirst()
@@ -98,7 +101,7 @@ public class OrderService {
                 lines.add(line);
                 totalPrice += unitPrice * qty;
             } else {
-                // FIXED: Correct quantity merging and price calculation
+                // Correct quantity merging and price calculation
                 existing.setQuantity(existing.getQuantity() + qty);
                 totalPrice += existing.getUnitPriceAtPurchase() * qty;
             }
@@ -114,27 +117,20 @@ public class OrderService {
         order.setClient(client);
         order.setFoodTruck(foodTruck);
         orderRepository.save(order);
-    String awsurl ="http://localhost:8080";
-        String url = "https://api.moyasar.com/v1/payments/";
-        String callbackUrl = awsurl + "/api/v1/order/callback/" + order.getId();
 
+        // Fixed callback URL to use AWS and match working pattern
+        String callbackUrl = "http://trucksy-test-application-env.eba-vm3jvf3z.us-east-1.elasticbeanstalk.com/api/v1/order/callback/" + order.getId();
+
+        // Create request body following the same pattern as your working implementation
         String requestBody = String.format(
-                "source[type]=card" +
-                        "&source[name]=%s" +
-                        "&source[number]=%s" +
-                        "&source[cvc]=%s" +
-                        "&source[month]=%s" +
-                        "&source[year]=%s" +
-                        "&amount=%d" +
-                        "&currency=%s" +
-                        "&callback_url=%s",
+                "source[type]=card&source[name]=%s&source[number]=%s&source[cvc]=%s&source[month]=%s&source[year]=%s&amount=%d&currency=%s&callback_url=%s",
                 user.getBankCard().getName(),
                 user.getBankCard().getNumber(),
                 user.getBankCard().getCvc(),
                 user.getBankCard().getMonth(),
                 user.getBankCard().getYear(),
-                (int) Math.round(totalPrice * 100),
-                user.getBankCard().getCurrency(),
+                (int) Math.round(totalPrice * 100), // Convert to cents
+                "SAR",
                 callbackUrl
         );
 
@@ -144,198 +140,176 @@ public class OrderService {
 
         HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
         RestTemplate restTemplate = new RestTemplate();
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
 
-        try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(response.getBody());
+        ResponseEntity<JsonNode> response = restTemplate.exchange(
+                MOYASAR_API_URL,
+                HttpMethod.POST,
+                entity,
+                JsonNode.class
+        );
 
-            String paymentId = root.path("id").asText(null);
-            String transactionUrl = root.path("source").path("transaction_url").asText(null);
-
-            if (paymentId == null || transactionUrl == null) {
-                throw new ApiException("Payment response missing required fields");
-            }
-
-            BankCard pr = user.getBankCard();
-            pr.setPaymentUserId(paymentId);
-            pr.setRedirectToCompletePayment(transactionUrl);
-            bankCardRepository.save(pr);
-
-            Map<String, String> result = new HashMap<>();
-            result.put("payment_user_id", paymentId);
-            result.put("transaction_url", transactionUrl);
-
-            return ResponseEntity.status(response.getStatusCode()).body(result);
-
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new ApiException("Failed to parse payment response JSON");
-        }
+        // Return the response body from Moyasar (includes payment process URL as JSON)
+        return ResponseEntity.status(response.getStatusCode()).body(response.getBody().toString());
     }
 
-    @Transactional
-    public ResponseEntity<?> handlePaymentCallback(Integer orderId, String paymentIdFromQuery) {
-        if (orderId == null) {
-            throw new ApiException("orderId is required");
-        }
-
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ApiException("Order not found"));
-
-        Client client = order.getClient();
-        if (client == null) {
-            throw new ApiException("Order has no client");
-        }
-
-        User user = authRepository.findUserById(client.getId());
-        if (user == null || user.getBankCard() == null) {
-            throw new ApiException("User/BankCard not found");
-        }
-
-        String paymentId = paymentIdFromQuery;
-        if (paymentId == null || paymentId.isBlank()) {
-            paymentId = user.getBankCard().getPaymentUserId();
-        }
-        if (paymentId == null || paymentId.isBlank()) {
-            throw new ApiException("paymentId not provided and not found on BankCard");
-        }
-
-        RestTemplate restTemplate = new RestTemplate();
+    public String getPaymentStatus(String paymentId) {
         HttpHeaders headers = new HttpHeaders();
         headers.setBasicAuth(apiKey, "");
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-        ResponseEntity<String> resp = restTemplate.exchange(
-                MOYASAR_API_URL + paymentId,
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        RestTemplate restTemplate = new RestTemplate();
+
+        ResponseEntity<String> response = restTemplate.exchange(
+                MOYASAR_API_URL + "/" + paymentId,
                 HttpMethod.GET,
                 entity,
                 String.class
         );
 
-        try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(resp.getBody());
-
-            String status = root.path("status").asText("");
-
-            if (!"paid".equalsIgnoreCase(status)) {
-                throw new ApiException("Payment not paid (status=" + status + ")");
-            }
-
-            double current = user.getBankCard().getAmount();
-            double newAmount = current - order.getTotalPrice();
-            if (newAmount < -0.001) {
-                throw new ApiException("Insufficient funds at callback");
-            }
-            user.getBankCard().setAmount(newAmount);
-            bankCardRepository.save(user.getBankCard());
-
-            order.setStatus("PAID");
-            orderRepository.save(order);
-
-            // Send WhatsApp notification to food truck owner
-            FoodTruck ft = order.getFoodTruck();
-            if (ft != null && ft.getOwner() != null && ft.getOwner().getUser() != null) {
-                String ownerPhone = ft.getOwner().getUser().getPhoneNumber();
-                if (ownerPhone != null && !ownerPhone.isBlank()) {
-                    whatsAppService.sendText(
-                            ownerPhone,
-                            "🚚 New Order Received! Order #" + order.getId() + " from " + ft.getName() +
-                                    ". Total: " + order.getTotalPrice() + " SAR. Check your dashboard for details."
-                    );
-                }
-            }
-
-            // FIXED: Send invoice email with proper data structure
-            try {
-                String customerName = (client.getUser() != null && client.getUser().getUsername() != null)
-                        ? client.getUser().getUsername() : "Customer";
-                String customerEmail = (client.getUser() != null) ? client.getUser().getEmail() : null;
-
-                if (customerEmail != null && !customerEmail.isBlank()) {
-                    // FIXED: Create proper template variables for PDF generation
-                    Map<String, Object> templateVars = new HashMap<>();
-
-                    // Basic order info
-                    templateVars.put("orderId", order.getId());
-                    templateVars.put("creationDate", LocalDate.now().toString());
-                    templateVars.put("orderStatus", order.getStatus());
-                    templateVars.put("paymentId", paymentId);
-
-                    // Customer info
-                    templateVars.put("clientName", customerName);
-                    templateVars.put("customerEmail", customerEmail);
-
-                    // Food truck info
-                    if (order.getFoodTruck() != null) {
-                        templateVars.put("foodTruckName", order.getFoodTruck().getName());
-                    }
-
-                    // FIXED: Create order lines with proper structure for template
-                    List<InvoiceLineDto> orderLines = new ArrayList<>();
-                    if (order.getLines() != null) {
-                        for (OrderLine line : order.getLines()) {
-                            InvoiceLineDto dto = new InvoiceLineDto();
-                            dto.setItemName(line.getItem().getName());
-                            dto.setQuantity(line.getQuantity());
-                            dto.setUnitPrice(String.format("%.2f SAR", line.getUnitPriceAtPurchase()));
-                            dto.setLineTotal(String.format("%.2f SAR", line.getUnitPriceAtPurchase() * line.getQuantity()));
-                            orderLines.add(dto);
-                        }
-                    }
-                    templateVars.put("orderLines", orderLines);
-
-                    // Total price formatting
-                    templateVars.put("totalPriceFormatted", String.format("%.2f SAR", order.getTotalPrice()));
-
-                    // Generate PDF with corrected method call
-                    byte[] pdf = pdfService.generateInvoicePdf(templateVars);
-
-                    String filename = "Trucksy-Invoice-" + order.getId() + ".pdf";
-                    String subject = "Your Trucksy order invoice #" + order.getId();
-                    String invoicePublicLink = "http://localhost:8080/api/v1/order/" + order.getId() + "/invoice.pdf";
-
-                    String html = String.format("""
-                            <div style="font-family:Arial,Helvetica,sans-serif">
-                              <h2 style="margin:0 0 8px 0">Thanks for your order!</h2>
-                              <p style="margin:0 0 12px 0">Your Trucksy order <b>#%s</b> has been paid successfully.</p>
-                              <p style="margin:0 0 12px 0">Total amount: <b>%.2f SAR</b></p>
-                              <p style="margin:0 0 12px 0">We've attached your invoice as a PDF.</p>
-                              <p style="margin:0 0 12px 0">
-                                You can also download it from this link:
-                                <a href="%s" target="_blank" rel="noopener noreferrer">Download Invoice (PDF)</a>
-                              </p>
-                              <p style="color:#6b7280;font-size:12px;margin:16px 0 0 0">
-                                If you didn't authorize this payment, please contact support.
-                              </p>
-                            </div>
-                            """, order.getId(), order.getTotalPrice(), invoicePublicLink);
-
-                    pdfMailService.sendHtmlEmailWithAttachment(
-                            customerEmail,
-                            subject,
-                            html,
-                            filename,
-                            pdf
-                    );
-                }
-            } catch (Exception mailErr) {
-                // Don't break the success flow if email fails
-                System.err.println("Failed to send invoice email: " + mailErr.getMessage());
-            }
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("orderId", order.getId());
-            result.put("paymentId", paymentId);
-            result.put("status", "paid");
-            return ResponseEntity.ok(result);
-
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new ApiException("Failed to parse Moyasar payment GET response");
-        }
+        return response.getBody();
     }
 
-    //Done ready status and Completed : Ready will send whatsapp notification to client as will as Completed
+    @Transactional
+    public ResponseEntity<?> handlePaymentCallback(Integer orderId, String transaction_id, String status, String message) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ApiException("Error, the order does not exist"));
+
+        // Check the payment status from Moyasar to verify it's a legitimate callback
+        String response = getPaymentStatus(transaction_id);
+        JSONObject paymentStatus = new JSONObject(response);
+
+        String moyasarStatus = paymentStatus.getString("status");
+
+        if (!status.equalsIgnoreCase(moyasarStatus)) {
+            throw new ApiException("Error, the status received is inconsistent with moyasar");
+        }
+
+        // Check the payment amount if it is correct (convert from cents)
+        Double moyasarAmount = paymentStatus.getInt("amount") / 100.0;
+
+        if (!moyasarAmount.equals(order.getTotalPrice())) {
+            throw new ApiException("Error, the amount " + moyasarAmount + " does not match the order total " + order.getTotalPrice());
+        }
+
+        // Verify the payment is actually paid
+        if (!moyasarStatus.equalsIgnoreCase("PAID")) {
+            throw new ApiException("Error, the invoice was not paid");
+        }
+
+        // Deduct amount from bank card
+        Client client = order.getClient();
+        User user = authRepository.findUserById(client.getId());
+        if (user == null || user.getBankCard() == null) {
+            throw new ApiException("User/BankCard not found");
+        }
+
+        BankCard bankCard = user.getBankCard();
+        double newAmount = bankCard.getAmount() - order.getTotalPrice();
+        bankCard.setAmount(newAmount);
+        bankCardRepository.save(bankCard);
+
+        // Update order status
+        order.setStatus("PAID");
+        orderRepository.save(order);
+
+        // Send WhatsApp notification to food truck owner
+        FoodTruck ft = order.getFoodTruck();
+        if (ft != null && ft.getOwner() != null && ft.getOwner().getUser() != null) {
+            String ownerPhone = ft.getOwner().getUser().getPhoneNumber();
+            if (ownerPhone != null && !ownerPhone.isBlank()) {
+                whatsAppService.sendText(
+                        ownerPhone,
+                        "🚚 New Order Received! Order #" + order.getId() + " from " + ft.getName() +
+                                ". Total: " + order.getTotalPrice() + " SAR. Check your dashboard for details."
+                );
+            }
+        }
+
+        // Send invoice email with proper data structure
+        try {
+            String customerName = (client.getUser() != null && client.getUser().getUsername() != null)
+                    ? client.getUser().getUsername() : "Customer";
+            String customerEmail = (client.getUser() != null) ? client.getUser().getEmail() : null;
+
+            if (customerEmail != null && !customerEmail.isBlank()) {
+                // Create proper template variables for PDF generation
+                Map<String, Object> templateVars = new HashMap<>();
+
+                // Basic order info
+                templateVars.put("orderId", order.getId());
+                templateVars.put("creationDate", LocalDate.now().toString());
+                templateVars.put("orderStatus", order.getStatus());
+                templateVars.put("paymentId", transaction_id);
+
+                // Customer info
+                templateVars.put("clientName", customerName);
+                templateVars.put("customerEmail", customerEmail);
+
+                // Food truck info
+                if (order.getFoodTruck() != null) {
+                    templateVars.put("foodTruckName", order.getFoodTruck().getName());
+                }
+
+                // Create order lines with proper structure for template
+                List<InvoiceLineDto> orderLines = new ArrayList<>();
+                if (order.getLines() != null) {
+                    for (OrderLine line : order.getLines()) {
+                        InvoiceLineDto dto = new InvoiceLineDto();
+                        dto.setItemName(line.getItem().getName());
+                        dto.setQuantity(line.getQuantity());
+                        dto.setUnitPrice(String.format("%.2f SAR", line.getUnitPriceAtPurchase()));
+                        dto.setLineTotal(String.format("%.2f SAR", line.getUnitPriceAtPurchase() * line.getQuantity()));
+                        orderLines.add(dto);
+                    }
+                }
+                templateVars.put("orderLines", orderLines);
+
+                // Total price formatting
+                templateVars.put("totalPriceFormatted", String.format("%.2f SAR", order.getTotalPrice()));
+
+                // Generate PDF with corrected method call
+                byte[] pdf = pdfService.generateInvoicePdf(templateVars);
+
+                String filename = "Trucksy-Invoice-" + order.getId() + ".pdf";
+                String subject = "Your Trucksy order invoice #" + order.getId();
+
+                String html = String.format("""
+                        <div style="font-family:Arial,Helvetica,sans-serif">
+                          <h2 style="margin:0 0 8px 0;color:#ff6b35">Thanks for your order!</h2>
+                          <p style="margin:0 0 12px 0">Your Trucksy order <b>#%s</b> has been paid successfully.</p>
+                          <p style="margin:0 0 12px 0">Order status: <b>%s</b></p>
+                          <p style="margin:0 0 12px 0">Total amount: <b>%.2f SAR</b></p>
+                          <p style="margin:0 0 12px 0">We've attached your invoice as a PDF.</p>
+                          <p style="color:#6b7280;font-size:12px;margin:16px 0 0 0">
+                            If you didn't authorize this payment, please contact support immediately.
+                          </p>
+                        </div>
+                        """, order.getId(), message, order.getTotalPrice());
+
+                pdfMailService.sendHtmlEmailWithAttachment(
+                        customerEmail,
+                        subject,
+                        html,
+                        filename,
+                        pdf
+                );
+            }
+        } catch (Exception mailErr) {
+            // Don't break the success flow if email fails
+            System.err.println("Failed to send invoice email: " + mailErr.getMessage());
+        }
+
+        // Create response similar to BA implementation
+        Map<String, Object> result = new HashMap<>();
+        result.put("orderId", order.getId());
+        result.put("paymentId", transaction_id);
+        result.put("status", "Order paid successfully: status: " + message);
+        result.put("totalPrice", order.getTotalPrice());
+
+        return ResponseEntity.ok(result);
+    }
+
     @Transactional
     public void changeOrderStatusToReady(Integer OwnerId, Integer foodTruckId, Integer orderId) {
         if (OwnerId == null || foodTruckId == null || orderId == null) {
@@ -418,7 +392,7 @@ public class OrderService {
         }
     }
 
-    // FIXED: Invoice Line DTO for template
+    // Invoice Line DTO for template
     public static class InvoiceLineDto {
         private String itemName;
         private Integer quantity;
